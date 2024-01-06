@@ -1,5 +1,5 @@
 // font.h -- defines fonts
-// Created by Daan Storm van Leeuwen, 5-1-2024
+// Created by Daan, 5-1-2024
 // 
 // Source for the font files: https://github.com/epto/epto-fonts
 // convert .font file to C output, use the command line:
@@ -9,6 +9,9 @@
 
 #ifndef FONT_H
 #define FONT_H
+
+//char mouse_cursor[8] = {0x00, 0x40, 0x60, 0x70, 0x78, 0x7c, 0x7e, 0x00};
+char mouse_cursor[8] = {0xff, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xff};
 
 char thin_font[256][8] = {
   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},

@@ -3,9 +3,19 @@
 #include <stdio.h>
 #include <dos.h>
 #include <string.h>
+#include <conio.h>
 #include "font.h"
+#include "vga.h"
+#include "vga.c"
 
-unsigned char far *videoBuffer = (unsigned char far *)0xA0000000; // video
+unsigned char savedMouseScreen[8][8];
+
+void beep() {
+  sound(1000);
+  delay(100);
+  nosound();
+  delay(100);
+}
 
 void showMouseCursor() {
   asm {
@@ -24,22 +34,6 @@ void hideMouseCursor() {
   }
 }
 
-void setGraphicsMode() {
-  union REGS inregs, outregs;
-
-  inregs.h.ah = 0; // set video mode function
-  inregs.h.al = 0x13; // Mode 13h == 320x200x256
-  int86(0x10, &inregs, &outregs); // BIOS call
-}
-
-void setTextMode () {
-  union REGS inregs, outregs;
-
-  inregs.h.ah = 0; // set video mode
-  inregs.h.al = 0x03; // Mode 3h = 80x25 text mode
-  int86(0x10, &inregs, &outregs);
-}
-
 void showErrorAndTerminate(const char *error_message, const char *location) {
   setTextMode(); // return to text mode
   printf("Fatal error: %s\n", error_message);
@@ -47,87 +41,6 @@ void showErrorAndTerminate(const char *error_message, const char *location) {
 
   // terminate execution
   exit(1);
-}
-
-void drawPixel(int x, int y, unsigned char color) {
-  unsigned int offset = y * 320 + x; // calculate offset
-  videoBuffer[offset] = color;
-}
-
-void drawLetter(char letter, int char_x, int char_y, unsigned char char_color) {
-  int x, y;
-  unsigned int index;
-  index = (int)letter;
-  for (y = 0; y <= 7; y++) {
-    for (x = 7; x >= 0; x--) {
-      if (thin_font[index][y] & (1 << x)) {
-	drawPixel(char_x + (6 - x), char_y + y, char_color);
-      }
-    }
-  }
-}
-
-void drawString(int x, int y, char *str, unsigned char color) {
-  int i;
-  for (i = 0; str[i] != 0; i++) {
-    drawLetter(str[i], x + (i * 7), y, color);
-  }
-}
-
-
-void drawLine(int x1, int y1, int x2, int y2, unsigned char color) {
-  int dx = abs(x2 - x1);
-  int dy = abs(y2 - y1);
-  int sx = x1 < x2 ? 1 : -1;
-  int sy = y1 < y2 ? 1 : -1;
-  int err = dx - dy;
-  int err2;
-
-  while (x1 != x2 || y1 != y2) {
-    drawPixel(x1, y1, color);
-    err2 = 2 * err;
-    if (err2 > -dy) {
-      err -= dy;
-      x1 += sx;
-    }
-    if (err2 < dx) {
-      err += dx;
-      y1 += sy;
-    }
-  }
-
-  drawPixel(x2, y2, color);
-}
-
-void drawButton(int x, int y, char* text) {
-  int width, height;
-  int i;
-
-  width = ((strlen(text) - 1) * 8) + 10;
-  height = 12;
-  drawLine(x, y, x + width, y, 15);
-  drawLine(x, y, x, y + height, 15);
-  drawLine(x + width, y, x + width, y + height, 8);
-  drawLine(x + width, y + height, x, y + height, 8);
-  for (i = 1; i < height; i++) {
-    drawLine((x + 1), (y + i), (x + width - 1), (y + i), 7);
-  }
-  drawString (x + 3, y  + 3, text, 0);
-}
-void drawPushedButton(int x, int y, char* text) {
-  int width, height;
-  int i;
-
-  width = ((strlen(text) - 1) * 8) + 10;
-  height = 12;
-  drawLine(x, y, x + width, y, 8);
-  drawLine(x, y, x, y + height, 8);
-  drawLine(x + width, y, x + width, y + height, 15);
-  drawLine(x + width, y + height, x, y + height, 15);
-  for (i = 1; i < height; i++) {
-    drawLine((x + 1), (y + i), (x + width - 1), (y + i), 7);
-  }
-  drawString (x + 4, y  + 4, text, 8);
 }
 
 void setWorkSpace() {
@@ -168,9 +81,9 @@ void setWorkSpace() {
 	x = 180 + (i * 4);
 	y = 71 + j + ((row - 1) * 4);
 	c = (row - 1) * 16 + i;
-	drawPixel (x, y, c);
-	drawPixel (x + 1, y, c);
-	drawPixel (x + 2, y, c);
+	drawPixel (VGA_PANE, x, y, c);
+	drawPixel (VGA_PANE, x + 1, y, c);
+	drawPixel (VGA_PANE, x + 2, y, c);
       }
     }
   }
@@ -201,6 +114,35 @@ void setWorkSpace() {
   drawButton (280, 182,"Quit");
 }
 
+void saveScreen(unsigned int mouseX, unsigned int mouseY) {
+  unsigned int x, y;
+
+  for (y = 0; y < 8; y++) {
+    for (x = 0; x < 8; x++) {
+      savedMouseScreen[x][y] = getPixel(0, (mouseX + x), (mouseY + y));
+      //drawPixel(0, (mouseX + x), (mouseY + y), savedMouseScreen[x][y]);
+    }
+  }
+
+  for (y = 0; y < 8; y++) {
+    for (x = 0; x < 8; x++) {
+      //drawPixel(0, (mouseX + x), (mouseY + y), (x + 1));
+    }
+  }
+
+  drawPixel(0, mouseX, mouseY, getPixel(0, mouseX, mouseY));
+}
+
+void restoreScreen(unsigned int x, unsigned int y) {
+  int dx, dy;
+
+  for (dy = 0; dy < 8; dy++) {
+    for (dx = 0; dx < 8; dx++) {
+      drawPixel(0, (x + dx), (y + dy), savedMouseScreen[dx][dy]);
+    }
+  }
+}
+
 void getMouseStatus(int *button, int *x, int *y) {
   struct REGPACK reg;
   reg.r_ax = 0x0003;
@@ -208,14 +150,42 @@ void getMouseStatus(int *button, int *x, int *y) {
   *button = reg.r_bx;
   *x = reg.r_cx;
   *y = reg.r_dx;
+  *x /= 2;
+}
+
+void drawMouseCursor(unsigned int oldMouseX, unsigned int oldMouseY,
+		     unsigned int mouseX, unsigned int mouseY) {
+  int x, y;
+  unsigned char mask = 0x80;
+
+  waitForRetrace();
+  restoreScreen(oldMouseX, oldMouseY);
+  saveScreen(mouseX, mouseY);
+  waitForRetrace();
+  for (y = 0; y <= 7; y++) {
+    for (x = 0; x <= 7; x++) {
+//      if (mouse_cursor[y] & (1 << x)) {
+//	drawPixel(VGA_PANE, mouseX + (7 - x), mouseY + y, 15);
+      if (mouse_cursor[y] & (mask >> x)) {
+	drawPixel(0, (mouseX + x), (mouseY + y), 15);
+      }
+    }
+  }
+
 }
 
 int main(int argc, char** argv[]) {
   int x, y;
   int mouseX, mouseY, mouseButton;
+  int oldMouseX, oldMouseY;
   int prevMouseButton, animationDrawn;
+  char string[100];
+
+  // Initialise values
   prevMouseButton = 0;
   animationDrawn = 0;
+  oldMouseX = 0;
+  oldMouseY = 0;
 
   // This code is here to prevent warnings for not using argc, argv in the
   // compiler
@@ -224,12 +194,24 @@ int main(int argc, char** argv[]) {
   }
 
   setGraphicsMode(); // Switch to 320x200x256
-  showMouseCursor();
   setWorkSpace(); // set-up workspace
 
+  // Initial mouse routines; save background etc.
+  getMouseStatus(&mouseButton, &mouseX, &mouseY);
+
+  saveScreen(mouseX, mouseY);
+  oldMouseX = mouseX;
+  oldMouseY = mouseY;
+
   // Main program loop
-  while (1) {
+  while (!kbhit()) {
     getMouseStatus(&mouseButton, &mouseX, &mouseY);
+    if ((mouseX != oldMouseX) || (mouseY != oldMouseY)) {
+      // Mouse position changed
+      drawMouseCursor(oldMouseX, oldMouseY, mouseX, mouseY);
+      oldMouseX = mouseX;
+      oldMouseY = mouseY;
+    }
 
     if (mouseButton != prevMouseButton) {
       // Check if something needs to be animated
@@ -252,6 +234,13 @@ int main(int argc, char** argv[]) {
 
   hideMouseCursor();
   setTextMode();
-  printf("Have a happy DOS!\n");
+  for (x = 0; x < 8; x++) {
+    for (y = 0; y < 8; y++) {
+      printf("%02X ", savedMouseScreen[x][y]);
+    }
+    printf("\n");
+  }
+  printf("\n\nHave a happy DOS!\n");
+
   return 0;
 }
