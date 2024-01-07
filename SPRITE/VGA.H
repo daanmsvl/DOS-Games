@@ -1,4 +1,6 @@
 // vga.h - contains all VGA procedures and constants
+// Code based on root42 MS-DOS tutorials on YouTube
+//      see: https://www.youtube.com/playlist?list=PLGJnX2KGgaw2L7Uv5NThlL48G9y4rJx1X
 // Created by Daan, 6-1-2024
 
 #ifndef VGA_H
@@ -35,6 +37,7 @@ unsigned int VGA_PANE = 0;
 
 // Sequence controller registers
 #define MAP_MASK 0x02
+#define READ_MAP_SELECT 0x04                // Added to read from pane
 #define ALL_PLANES 0xFF02
 #define MEMORY_MODE 0x04
 

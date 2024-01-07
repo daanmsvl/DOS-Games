@@ -1,4 +1,8 @@
-/* sprite editor */
+/* sprite editor 
+   by Daan, 5-1-2024
+   Code heavily influence by the let's play MS-DOS tutorials by Root42
+   see: https://www.youtube.com/playlist?list=PLGJnX2KGgaw2L7Uv5NThlL48G9y4rJx1X
+*/
 
 #include <stdio.h>
 #include <dos.h>
@@ -179,7 +183,6 @@ int main(int argc, char** argv[]) {
   int mouseX, mouseY, mouseButton;
   int oldMouseX, oldMouseY;
   int prevMouseButton, animationDrawn;
-  char string[100];
 
   // Initialise values
   prevMouseButton = 0;
@@ -234,12 +237,7 @@ int main(int argc, char** argv[]) {
 
   hideMouseCursor();
   setTextMode();
-  for (x = 0; x < 8; x++) {
-    for (y = 0; y < 8; y++) {
-      printf("%02X ", savedMouseScreen[x][y]);
-    }
-    printf("\n");
-  }
+
   printf("\n\nHave a happy DOS!\n");
 
   return 0;

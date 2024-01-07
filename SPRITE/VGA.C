@@ -1,3 +1,9 @@
+/*
+  VGA procedures
+  Code heavily influenced by the Let's Play series by Root42 on YouTube
+  See: https://www.youtube.com/playlist?list=PLGJnX2KGgaw2L7Uv5NThlL48G9y4rJx1X
+*/
+
 #include "vga.h"
 #include <dos.h>
 #include <stdio.h>
@@ -67,12 +73,15 @@ void drawPixel(int page, int x, int y, unsigned char color) {
 }
 
 unsigned char getPixel(int page, int x, int y) {
+  // GetPixel routine based on Mike Hawk
+  // https://qbmikehawk.neocities.org/articles/mode-y/
   unsigned int offset;
-  outportb (SC_INDEX, MAP_MASK);
-  outportb (SC_DATA, 1 << (x & 3));
 
-  offset = page + ((SCREEN_WIDTH * y) >> 2) + (x >> 2);
-  return (unsigned char)VGA[offset];
+  outportb (GC_INDEX, READ_MAP_SELECT);
+  outportb (GC_DATA, (x & 3));
+
+  offset = page + ((y * SCREEN_WIDTH) >> 2) + (x >> 2);
+  return VGA[offset];
 }
 
 
