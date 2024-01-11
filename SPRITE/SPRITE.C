@@ -1,4 +1,4 @@
-/* sprite editor 
+/* sprite editor
    by Daan, 5-1-2024
    Code heavily influence by the let's play MS-DOS tutorials by Root42
    see: https://www.youtube.com/playlist?list=PLGJnX2KGgaw2L7Uv5NThlL48G9y4rJx1X
@@ -8,6 +8,7 @@
 #include <dos.h>
 #include <string.h>
 #include <conio.h>
+#include <math.h>
 #include "font.h"
 #include "vga.h"
 #include "vga.c"
@@ -45,6 +46,19 @@ void showErrorAndTerminate(const char *error_message, const char *location) {
 
   // terminate execution
   exit(1);
+}
+
+void drawColorSelected(int color) {
+  int i;
+  // Draw rectangle
+  drawLine (180, 164, 234, 164, 15);
+  drawLine (180, 164, 180, 180, 15);
+  drawLine (180, 180, 234, 180, 15);
+  drawLine (234, 180, 234, 164, 15);
+
+  for (i = 0; i < 15; i++) {
+    drawLine(181, 165 + i, 233, 165 + i, color);
+  }
 }
 
 void setWorkSpace() {
@@ -92,11 +106,7 @@ void setWorkSpace() {
     }
   }
 
-  // Current color
-  drawLine (180, 164, 234, 164, 15);
-  drawLine (180, 164, 180, 180, 15);
-  drawLine (180, 180, 234, 180, 15);
-  drawLine (234, 180, 234, 164, 15);
+  drawColorSelected(0);
 
   // Make labels
   drawString (10, 10, "Workspace", 14);
@@ -124,13 +134,6 @@ void saveScreen(unsigned int mouseX, unsigned int mouseY) {
   for (y = 0; y < 8; y++) {
     for (x = 0; x < 8; x++) {
       savedMouseScreen[x][y] = getPixel(0, (mouseX + x), (mouseY + y));
-      //drawPixel(0, (mouseX + x), (mouseY + y), savedMouseScreen[x][y]);
-    }
-  }
-
-  for (y = 0; y < 8; y++) {
-    for (x = 0; x < 8; x++) {
-      //drawPixel(0, (mouseX + x), (mouseY + y), (x + 1));
     }
   }
 
@@ -161,6 +164,7 @@ void drawMouseCursor(unsigned int oldMouseX, unsigned int oldMouseY,
 		     unsigned int mouseX, unsigned int mouseY) {
   int x, y;
   unsigned char mask = 0x80;
+  char coords[100];
 
   waitForRetrace();
   restoreScreen(oldMouseX, oldMouseY);
@@ -168,21 +172,28 @@ void drawMouseCursor(unsigned int oldMouseX, unsigned int oldMouseY,
   waitForRetrace();
   for (y = 0; y <= 7; y++) {
     for (x = 0; x <= 7; x++) {
-//      if (mouse_cursor[y] & (1 << x)) {
-//	drawPixel(VGA_PANE, mouseX + (7 - x), mouseY + y, 15);
       if (mouse_cursor[y] & (mask >> x)) {
 	drawPixel(0, (mouseX + x), (mouseY + y), 15);
       }
     }
   }
 
+  for (y = 0; y < 12; y++) {
+    drawLine(0, y, 320, y, 0);
+  }
+  sprintf(coords, "X: %d, Y: %d", mouseX, mouseY);
+  drawString(0, 0, coords, 15);
+
 }
 
 int main(int argc, char** argv[]) {
   int x, y;
+  int i;
+  int color;
   int mouseX, mouseY, mouseButton;
   int oldMouseX, oldMouseY;
   int prevMouseButton, animationDrawn;
+  char s[100];
 
   // Initialise values
   prevMouseButton = 0;
@@ -196,7 +207,7 @@ int main(int argc, char** argv[]) {
     printf("%s\n", argv[1]);
   }
 
-  setGraphicsMode(); // Switch to 320x200x256
+  setGraphicsMode(); // Switch to 320x200x256; mode Y
   setWorkSpace(); // set-up workspace
 
   // Initial mouse routines; save background etc.
@@ -219,15 +230,28 @@ int main(int argc, char** argv[]) {
     if (mouseButton != prevMouseButton) {
       // Check if something needs to be animated
       if ((mouseButton == 1) && (animationDrawn == 0)) {
-	if ((mouseX >= 280) && (mouseY >= 182)) {
+	if ((mouseX >= 280) && (mouseY >= 182) &&    // Quit pressed
+	    (mouseX <= 313) && (mouseY <= 194)) {
 	  // Animate 'quit' button
 	  drawPushedButton(280, 182, "Quit");
 	  animationDrawn= 1;
 	}
+	if ((mouseX >= 180) && (mouseX <= 243) &&
+	    (mouseY >= 71) && (mouseY <= 135)) {    // Color picker
+	    for (i = 0; i<12; i++) {
+	      drawLine(0, 182 + i, 320, 182 + i, 0);
+	    }
+	    x = ceil((float)((mouseX - 180)/4));
+	    y = ceil((float)((mouseY - 71)/4));
+	    y = (y == 4 && y % 4 != 0) ? 1 : y;
+	    color = (y * 16) + x;
+	    drawColorSelected(color);
+	}
       }
       // Action on the release of the button
       if (mouseButton == 0) {		// indicates release
-	if ((mouseX >= 280) && (mouseY >= 182)) {
+	if ((mouseX >= 280) && (mouseY >= 182) &&
+	    (mouseX <= 313) && (mouseY <= 194)) {
 	  break; //quit pressed
 	}
       }
@@ -238,7 +262,7 @@ int main(int argc, char** argv[]) {
   hideMouseCursor();
   setTextMode();
 
-  printf("\n\nHave a happy DOS!\n");
+  printf("\nHave a nice DOS!\n");
 
   return 0;
 }

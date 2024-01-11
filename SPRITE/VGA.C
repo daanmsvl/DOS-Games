@@ -8,7 +8,6 @@
 #include <dos.h>
 #include <stdio.h>
 
-// Procedure to go back to text mode
 void setTextMode () {
   union REGS inregs, outregs;
 
