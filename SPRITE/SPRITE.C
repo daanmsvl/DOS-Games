@@ -13,7 +13,80 @@
 #include "vga.h"
 #include "vga.c"
 
+// Structs
+struct Sprite {
+  unsigned char pixels[32][32];
+  unsigned char transparencyColor;
+};
+
+struct Palette {
+  unsigned char red[256];
+  unsigned char green[256];
+  unsigned char blue[256];
+};
+
+struct SpriteSet {
+  struct Sprite sprites[12];
+  struct Palette palette;
+  int currentSprite;
+};
+
+// global variables
 unsigned char savedMouseScreen[8][8];
+struct SpriteSet spriteSet;
+
+void clearSprites() {
+  int i;
+  int x, y;
+  for (i = 0; i < 12; i++) {
+    for (x = 0; x < 32; x++) {
+      for (y = 0; y < 32; y++) {
+	spriteSet.sprites[i].pixels[x][y] = 0;
+      }
+    }
+    spriteSet.sprites[i].transparencyColor = 0;
+  }
+  spriteSet.currentSprite = 0; // set current sprite to 0
+}
+
+void fillPreviewArea() {
+  /*
+    drawLine (179, 19, 213, 19, 15);
+    drawLine (179, 19, 179, 53, 15);
+    drawLine (179, 53, 213, 53, 15);
+    drawLine (213, 53, 213, 19, 15);
+   */
+  int x, y;
+  int cs, color; // easier to type
+
+  for (x = 0; x < 32; x++) {
+    for (y = 0; y < 32; y++) {
+      cs = spriteSet.currentSprite;
+      color = spriteSet.sprites[cs].pixels[x][y];
+      drawPixel(0, 180 + x, 20 + y, color);
+    }
+  }
+}
+
+void fillSpriteArea() {
+  int x, y;
+  int dx, dy;
+  int i;
+  int cs;
+  int color;
+
+  cs = spriteSet.currentSprite; // cs is easier to type...
+  for (x = 0; x < 32; x++) {
+    for (y = 0; y < 32; y++) {
+      dx = 10 + (x * 5);
+      dy = 20 + (y * 5);
+      color = spriteSet.sprites[cs].pixels[x][y];
+      for (i = 0; i < 4; i ++) {
+	drawLine(dx, dy + i, dx + 3, dy + i, color);
+      }
+    }
+  }
+}
 
 void beep() {
   sound(1000);
@@ -80,11 +153,17 @@ void setWorkSpace() {
     drawLine(10, y, 168, y, 8);
   }
 
+  // Fill with the actual sprite data
+  fillSpriteArea();
+
   // actual representation of the sprite
-  drawLine (179, 19, 213, 19, 15);
-  drawLine (179, 19, 179, 53, 15);
-  drawLine (179, 53, 213, 53, 15);
-  drawLine (213, 53, 213, 19, 15);
+  drawLine (179, 19, 212, 19, 15);
+  drawLine (179, 19, 179, 52, 15);
+  drawLine (179, 52, 212, 52, 15);
+  drawLine (212, 52, 212, 19, 15);
+
+  // Fill with the actual sprite
+  fillPreviewArea();
 
   // Color picker
   for (i = 0; i <= 16; i++) {
@@ -187,6 +266,7 @@ void drawMouseCursor(unsigned int oldMouseX, unsigned int oldMouseY,
 }
 
 int main(int argc, char** argv[]) {
+  // General purpose variables
   int x, y;
   int i;
   int color;
@@ -194,6 +274,7 @@ int main(int argc, char** argv[]) {
   int oldMouseX, oldMouseY;
   int prevMouseButton, animationDrawn;
   char s[100];
+  FILE *file;
 
   // Initialise values
   prevMouseButton = 0;
@@ -207,12 +288,13 @@ int main(int argc, char** argv[]) {
     printf("%s\n", argv[1]);
   }
 
-  setGraphicsMode(); // Switch to 320x200x256; mode Y
-  setWorkSpace(); // set-up workspace
+  // Initialise work area
+  setGraphicsMode(); 	// Switch to 320x200x256; mode Y
+  clearSprites();	// Start with an empty file
+  setWorkSpace(); 	// set-up workspace
 
   // Initial mouse routines; save background etc.
   getMouseStatus(&mouseButton, &mouseX, &mouseY);
-
   saveScreen(mouseX, mouseY);
   oldMouseX = mouseX;
   oldMouseY = mouseY;
@@ -227,7 +309,30 @@ int main(int argc, char** argv[]) {
       oldMouseY = mouseY;
     }
 
-    if (mouseButton != prevMouseButton) {
+    if ((mouseButton == 1)) {		// Click without release
+      if ((mouseX >= 10) && (mouseX <= 169) &&
+	  (mouseY >= 20) && (mouseY <= 179)) {	// Work area click
+	// Calculate X and Y of the grid
+	x = ceil((float)((mouseX - 10)/5));
+	y = ceil((float)((mouseY - 20)/5));
+	i = spriteSet.currentSprite; // cs is easier to type...
+
+	// Color the pixel
+	spriteSet.sprites[i].pixels[x][y] = getPixel(0, 182, 166);
+
+	// Remove the mouse cursor
+	restoreScreen(mouseX, mouseY);
+
+	// Update what we did
+	fillSpriteArea();
+	fillPreviewArea();
+
+	// update what lies under the mouse cursor
+	saveScreen(mouseX, mouseY);
+      }
+    } // Click without release
+
+    if (mouseButton != prevMouseButton) {		// click with release
       // Check if something needs to be animated
       if ((mouseButton == 1) && (animationDrawn == 0)) {
 	if ((mouseX >= 280) && (mouseY >= 182) &&    // Quit pressed
@@ -238,15 +343,14 @@ int main(int argc, char** argv[]) {
 	}
 	if ((mouseX >= 180) && (mouseX <= 243) &&
 	    (mouseY >= 71) && (mouseY <= 135)) {    // Color picker
-	    for (i = 0; i<12; i++) {
-	      drawLine(0, 182 + i, 320, 182 + i, 0);
-	    }
+	    // Calculate the color selected
 	    x = ceil((float)((mouseX - 180)/4));
 	    y = ceil((float)((mouseY - 71)/4));
 	    y = (y == 4 && y % 4 != 0) ? 1 : y;
 	    color = (y * 16) + x;
 	    drawColorSelected(color);
 	}
+	prevMouseButton = mouseButton;
       }
       // Action on the release of the button
       if (mouseButton == 0) {		// indicates release
@@ -254,15 +358,23 @@ int main(int argc, char** argv[]) {
 	    (mouseX <= 313) && (mouseY <= 194)) {
 	  break; //quit pressed
 	}
+	prevMouseButton = mouseButton;
       }
-      prevMouseButton = mouseButton;
     }
   } // main program loop
 
   hideMouseCursor();
-  setTextMode();
 
-  printf("\nHave a nice DOS!\n");
+  setTextMode();
+  file = fopen("test.spr", "wb");
+  if (file == NULL) {
+    printf ("Error opening file for writing...");
+    return 1;
+  }
+  fwrite(&spriteSet, sizeof(struct SpriteSet), 1, file);
+  fclose(file);
+
+  printf("Have a nice DOS!\n");
 
   return 0;
 }
